@@ -3,7 +3,7 @@ import telebot
 from telebot import types
 from t0ken import *
 
-bot = telebot.TeleBot("6313360423:AAFnAi6FglZYbnU6hglG04PKLy7Ee9d-Lfw")
+bot = telebot.TeleBot(TOKEN)
 zap = False
 
 
