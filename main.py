@@ -1,6 +1,7 @@
 import os
 import re
 import telebot
+import pickle
 from telebot import types
 from num2words import num2words
 from docx import Document
@@ -16,10 +17,13 @@ bot = telebot.TeleBot(TOKEN)
 print("run in progress...")
 numero = 0
 placeholders = {}
-subs = ["{{номер}}", "{{дата}}", "{{ок_дата}}", "{{стоимость}}", "{{фио}}", "{{серияномер}}", "{{код}}", "{{др}}", "{{дата_выд}}", "{{кем}}", "{{адрес}}",
-        "{{р/с}}", "{{банк}}", "{{бик}}", "{{@исполн}}", "{{№исполн}}"]
+subs = ["{{номер}}", "{{дата}}", "{{ок_дата}}", "{{стоимость}}", "{{фио}}", "{{серияномер}}", "{{код}}", "{{др}}",
+        "{{дата_выд}}", "{{кем}}", "{{адрес}}",
+        "{{р/с}}", "{{бик}}", "{{@исполн}}", "{{№исполн}}"]
 
-callbacks = ['nomer', 'date', 'date_ok', 'stoim', 'fio', 'pasp', 'kod', 'dr', 'vyd', 'kem', 'adr', 'rs', 'bank', 'bik', 'mail', 'tel']
+call_gph = ['nomer', 'date', 'date_ok', 'stoim', 'fio', 'pasp', 'kod', 'dr', 'vyd', 'kem', 'adr', 'rs', 'bik', 'mail',
+            'tel']
+
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -35,25 +39,26 @@ def start(message):
 
 @bot.message_handler(content_types=['text'])
 def answer(message):
-        placeholders[subs[numero]] = message.text
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        if 0 < numero < 15:
-            item1 = types.InlineKeyboardButton('Назад', callback_data=callbacks[numero-1])
-            item2 = types.InlineKeyboardButton('Далее', callback_data=callbacks[numero+1])
-            markup.add(item2, item1)
-            bot.reply_to(message, 'Записал, нажмите *"Далее"* для продолжения', parse_mode='Markdown',
-                         reply_markup=markup)
-        elif numero == 0:
-            item1 = types.InlineKeyboardButton('Назад', callback_data='gph')
-            item2 = types.InlineKeyboardButton('Далее', callback_data=callbacks[numero+1])
-            markup.add(item2, item1)
-            bot.reply_to(message, 'Записал, нажмите *"Далее"* для продолжения', parse_mode='Markdown',
-                         reply_markup=markup)
-        elif numero == 15:
-            item1 = types.InlineKeyboardButton('Назад', callback_data=callbacks[numero-1])
-            item2 = types.InlineKeyboardButton('Готово', callback_data='send')
-            markup.add(item2, item1)
-            bot.reply_to(message, 'Заполнение закончено. Нажмите *"Готово"* для формирования документа', parse_mode='Markdown', reply_markup=markup)
+    placeholders[subs[numero]] = message.text
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    if 0 < numero < 14:
+        item1 = types.InlineKeyboardButton('Назад', callback_data=call_gph[numero - 1])
+        item2 = types.InlineKeyboardButton('Далее', callback_data=call_gph[numero + 1])
+        markup.add(item2, item1)
+        bot.reply_to(message, 'Записал, нажмите *"Далее"* для продолжения', parse_mode='Markdown',
+                     reply_markup=markup)
+    elif numero == 0:
+        item1 = types.InlineKeyboardButton('Назад', callback_data='gph')
+        item2 = types.InlineKeyboardButton('Далее', callback_data=call_gph[numero + 1])
+        markup.add(item2, item1)
+        bot.reply_to(message, 'Записал, нажмите *"Далее"* для продолжения', parse_mode='Markdown',
+                     reply_markup=markup)
+    elif numero == 14:
+        item1 = types.InlineKeyboardButton('Назад', callback_data=call_gph[numero - 1])
+        item2 = types.InlineKeyboardButton('Готово', callback_data='send')
+        markup.add(item2, item1)
+        bot.reply_to(message, 'Заполнение закончено. Нажмите *"Готово"* для формирования документа',
+                     parse_mode='Markdown', reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "gph")
@@ -63,6 +68,7 @@ def fill(call):
     markup.add(item1)
     bot.send_message(call.message.chat.id, text="Чтобы приступить к заполнению анкеты нажмите на кнопку ниже",
                      reply_markup=markup)
+
 
 @bot.callback_query_handler(func=lambda call: call.data == "nomer")
 def nom_dog(call):
@@ -76,6 +82,7 @@ def date(call):
     global numero
     numero = 1
     bot.send_message(call.message.chat.id, text='Введите дату заключения договора (в формате\n(в формате дд.мм.гггг)')
+
 
 @bot.callback_query_handler(func=lambda call: call.data == "date_ok")
 def date_ok(call):
@@ -147,32 +154,26 @@ def rs(call):
     bot.send_message(call.message.chat.id, text="Введите рассчетный счет")
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "bank")
-def bank(call):
-    global numero
-    numero = 12
-    bot.send_message(call.message.chat.id, text="Введите название банка исполнителя")
-
-
 @bot.callback_query_handler(func=lambda call: call.data == "bik")
 def bik(call):
     global numero
-    numero = 13
+    numero = 12
     bot.send_message(call.message.chat.id, text="Введите БИК")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "mail")
 def mail(call):
     global numero
-    numero = 14
+    numero = 13
     bot.send_message(call.message.chat.id, text="Введите эл. почту исполнителя")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "tel")
 def tel(call):
     global numero
-    numero = 15
+    numero = 14
     bot.send_message(call.message.chat.id, text="Введите номер телефона исполнителя\n(в формате 7 9xx xxx xx xx)")
+
 
 @bot.callback_query_handler(func=lambda call: call.data == "send")
 def docx(callback_query):
@@ -183,14 +184,23 @@ def docx(callback_query):
         placeholders["{{нум_ту_вордс}}"] = num2words(int(placeholders["{{стоимость}}"]), lang='ru')
         placeholders["{{ндфл}}"] = str(round(0.13 * int(placeholders["{{стоимость}}"])))
         placeholders["{{ндфл_ту_вордс}}"] = num2words(int(placeholders["{{ндфл}}"]), lang='ru')
+        print("деньги посчитаны")
         secondname, firstname, otch = placeholders["{{фио}}"].split()
         placeholders["{{фио_кор}}"] = firstname[0] + '. ' + otch[0] + '. ' + secondname
+        print("имя написали")
         placeholders["{{н_д}}"] = re.findall(r'(..)\..*', str(placeholders["{{дата}}"]))[0]
         placeholders["{{н_м}}"] = months[re.findall(r'..\.(..)\.....', str(placeholders["{{дата}}"]))[0]]
         placeholders["{{н_г}}"] = re.findall(r'..\...\.(.*)', str(placeholders["{{дата}}"]))[0]
         placeholders["{{к_д}}"] = re.findall(r'(..)\..*', str(placeholders["{{ок_дата}}"]))[0]
         placeholders["{{к_м}}"] = months[re.findall(r'..\.(..)\.....', str(placeholders["{{ок_дата}}"]))[0]]
         placeholders["{{к_г}}"] = re.findall(r'..\...\.(.*)', str(placeholders["{{ок_дата}}"]))[0]
+        print("с датами разобрались")
+        with open('bik_base.pickle', 'rb') as fp:
+            bik_mapper = pickle.load(fp)
+            if bik_mapper[placeholders["{{бик}}"]]:
+                placeholders["{{банк}}"] = bik_mapper[placeholders["{{бик}}"]]
+            else:
+                placeholders["{{банк}}"] = 'Ошибка!'
         print(placeholders)
         doc = Document('Договор ГПХ.docx')
 
@@ -204,7 +214,8 @@ def docx(callback_query):
                         font = run.font
                         font.name = "Times New Roman"
                         font.size = Pt(12)
-                        doc.save('Договор ГПХ.docx')
+                        new_doc_name = 'Договор ГПХ ' + secondname + '.docx'
+                        doc.save(new_doc_name)
 
         target_text = placeholders["{{фио}}"]
 
@@ -231,9 +242,8 @@ def docx(callback_query):
                     font.size = Pt(12)
                     # Добавляем текст после выделенной части без жирного начертания
                     # new_run.add_text(parts[1])
-                    doc.save('Договор ГПХ.docx')
-        document_path = 'Договор ГПХ.docx'
-        with open(document_path, 'rb') as docx_file:
+                    doc.save(new_doc_name)
+        with open(new_doc_name, 'rb') as docx_file:
             bot.send_document(callback_query.message.chat.id, docx_file)
     except Exception as e:
         print(e)
