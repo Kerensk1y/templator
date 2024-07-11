@@ -1,7 +1,6 @@
-import os
 import re
 import telebot
-import json
+import sqlite3
 from telebot import types
 from num2words import num2words
 from docx import Document
@@ -19,6 +18,7 @@ numero = 0
 placeholders = {}
 subs = []
 zap = ''
+style = 'Поэтапно'
 call_gph = ('nomer', 'date', 'date_ok', 'stoim', 'fio', 'pasp', 'kod', 'dr', 'vyd', 'kem', 'adr', 'rs', 'bik',
             'mail', 'tel')
 call_sz = ('nomer', 'date', 'date_ok', 'fio', 'pasp', 'kod', 'dr', 'vyd', 'kem', 'adr', 'rs', 'bik', 'inn', 'raboty',
@@ -26,19 +26,85 @@ call_sz = ('nomer', 'date', 'date_ok', 'fio', 'pasp', 'kod', 'dr', 'vyd', 'kem',
            'stoim', 'genzak', 'data_dog', 'nom_dog', 'ikz', 'spr_god', 'spr_data', 'spr_nomer', 'mail_zak', 'tel_zak',
            'mail', 'tel')
 
+def init_db():
+    conn = sqlite3.connect('settings.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS user_settings (
+                        chat_id INTEGER PRIMARY KEY,
+                        style TEXT NOT NULL
+                    )''')
+    conn.commit()
+    conn.close()
+
+# Функция для сохранения или обновления стиля пользователя
+def save_user_style(chat_id, style):
+    conn = sqlite3.connect('settings.db')
+    cursor = conn.cursor()
+    cursor.execute('''INSERT OR REPLACE INTO user_settings (chat_id, style) VALUES (?, ?)''', (chat_id, style))
+    conn.commit()
+    conn.close()
+
+# Функция для получения стиля пользователя
+def get_user_style(chat_id):
+    conn = sqlite3.connect('settings.db')
+    cursor = conn.cursor()
+    cursor.execute('''SELECT style FROM user_settings WHERE chat_id = ?''', (chat_id,))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return result[0]
+    else:
+        return 'Поэтапно'  # Значение по умолчанию
+    
+# Инициализация базы данных
+init_db()
+
+def initialize_user_settings(chat_id):
+    conn = sqlite3.connect('settings.db')
+    cursor = conn.cursor()
+    cursor.execute('''INSERT OR IGNORE INTO user_settings (chat_id, style) VALUES (?, ?)''', (chat_id, 'Поэтапно'))
+    conn.commit()
+    conn.close()
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    chat_id = message.chat.id
+    current_style = get_user_style(chat_id)
+    initialize_user_settings(chat_id)
     try:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        item1 = types.InlineKeyboardButton('Договор ГПХ', callback_data='gph')
-        item2 = types.InlineKeyboardButton('Договор подряда', callback_data='sz')
-        markup.add(item1, item2)
-        bot.send_message(message.chat.id, text="Какой документ заполняем?",
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        if current_style == 'Одним сообщением':
+            item1 = types.InlineKeyboardButton('Договор ГПХ', callback_data='gph_one')
+            item2 = types.InlineKeyboardButton('Договор подряда', callback_data='sz_one')
+        else:
+            item1 = types.InlineKeyboardButton('Договор ГПХ', callback_data='gph')
+            item2 = types.InlineKeyboardButton('Договор подряда', callback_data='sz')
+        item3 = types.InlineKeyboardButton('Настройки ⚙️', callback_data='settings')
+        markup.add(item1, item2, item3)
+        bot.send_message(chat_id, text="Какой документ заполняем? (В настройках можно выбрать поэтапное заполнение или одним сообщением)",
                          parse_mode='Markdown', reply_markup=markup)
     except Exception as e:
         print(e)
 
+@bot.callback_query_handler(func=lambda call: call.data == "start")
+def start(call):
+    chat_id = call.message.chat.id
+    current_style = get_user_style(chat_id)
+    initialize_user_settings(chat_id)
+    try:
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        if current_style == 'Одним сообщением':
+            item1 = types.InlineKeyboardButton('Договор ГПХ', callback_data='gph_one')
+            item2 = types.InlineKeyboardButton('Договор подряда', callback_data='sz_one')
+        else:
+            item1 = types.InlineKeyboardButton('Договор ГПХ', callback_data='gph')
+            item2 = types.InlineKeyboardButton('Договор подряда', callback_data='sz')
+        item3 = types.InlineKeyboardButton('Настройки ⚙️', callback_data='settings')
+        markup.add(item1, item2, item3)
+        bot.send_message(chat_id, text="Какой документ заполняем? (В настройках можно выбрать поэтапное заполнение или одним сообщением)",
+                         parse_mode='Markdown', reply_markup=markup)
+    except Exception as e:
+        print(e)
 
 @bot.message_handler(content_types=['text'])
 def answer(message):
@@ -104,8 +170,44 @@ def fill(call):
             "{{№зкзчк}}", "{{ @ зкзчк}}", "{{инн}}", "{{р/с}}"]
     zap = 'СЗ'
 
+@bot.callback_query_handler(func=lambda call: call.data == "settings")
+def setting(call):
+    chat_id = call.message.chat.id
+    current_style = get_user_style(chat_id)
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    item1 = types.InlineKeyboardButton('Одним сообщением', callback_data='one')
+    item2 = types.InlineKeyboardButton('Поэтапно', callback_data='step_by_step')
+    item3 = types.InlineKeyboardButton('Назад', callback_data='start')
+    markup.add(item2, item1, item3)
+    bot.send_message(call.message.chat.id, text=f'Как будем заполнять договор? (сейчас установлен вариант "{current_style}")', reply_markup=markup)
 
-# (0, 1, 2, 4, 5, )
+@bot.callback_query_handler(func=lambda call: call.data == "one")
+def set_style_one(call):
+    chat_id = call.message.chat.id
+    save_user_style(chat_id, 'Одним сообщением')
+    try:
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        item1 = types.InlineKeyboardButton('Договор ГПХ', callback_data='gph_one')
+        item2 = types.InlineKeyboardButton('Договор подряда', callback_data='sz_one')
+        item3 = types.InlineKeyboardButton('Настройки ⚙️', callback_data='settings')
+        markup.add(item1, item2, item3)
+        bot.send_message(call.message.chat.id, text=f'Выбран "Одним сообщением". Какой документ заполняем?', parse_mode='Markdown', reply_markup=markup)
+    except Exception as e:
+        print(e)
+
+@bot.callback_query_handler(func=lambda call: call.data == "step_by_step")
+def set_style_step_by_step(call):
+    chat_id = call.message.chat.id
+    save_user_style(chat_id, 'Поэтапно')
+    try:
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        item1 = types.InlineKeyboardButton('Договор ГПХ', callback_data='gph')
+        item2 = types.InlineKeyboardButton('Договор подряда', callback_data='sz')
+        item3 = types.InlineKeyboardButton('Настройки ⚙️', callback_data='settings')
+        markup.add(item1, item2, item3)
+        bot.send_message(call.message.chat.id, text=f'Выбран "Поэтапно". Какой документ заполняем?', parse_mode='Markdown', reply_markup=markup)
+    except Exception as e:
+        print(e)
 
 @bot.callback_query_handler(func=lambda call: call.data == "nomer")
 def nom_dog(call):
